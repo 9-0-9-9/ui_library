@@ -62,7 +62,7 @@ function Library:CreateWindow(name)
         Tween(Main, TweenInfo.new(0.1), {BackgroundTransparency = math.clamp(Main.BackgroundTransparency + offset, 0, 1)})
         Tween(Stroke, TweenInfo.new(0.1), {Transparency = math.clamp(Stroke.Transparency + offset, 0, 1)})
         for _, v in pairs(Main:GetDescendants()) do
-            if v:IsA("Frame") and v.Name ~= "TopBar" and v.BackgroundTransparency < 1 then
+            if (v:IsA("Frame") or v:IsA("ScrollingFrame")) and v.Name ~= "TopBar" and v.BackgroundTransparency < 1 then
                 Tween(v, TweenInfo.new(0.1), {BackgroundTransparency = math.clamp(v.BackgroundTransparency + offset, 0, 1)})
             elseif v:IsA("TextLabel") or v:IsA("TextBox") then
                 Tween(v, TweenInfo.new(0.1), {TextTransparency = math.clamp(v.TextTransparency + offset, 0, 1)})
@@ -103,11 +103,12 @@ function Library:CreateWindow(name)
     local function getVisibleElements()
         local visible = {}
         for _, el in ipairs(Window.Elements) do
-            if el.Frame and el.Frame.Visible and el.Frame.Parent == Container then
-                table.insert(visible, el)
-                if el.IsOpen and el.Children then
-                    for _, child in ipairs(el.Children) do
-                        table.insert(visible, child)
+            table.insert(visible, el)
+            if el.IsOpen and el.Children then
+                for _, child in ipairs(el.Children) do
+                    table.insert(visible, child)
+                    if child.IsOpen and child.Children then
+                        for _, sub in ipairs(child.Children) do table.insert(visible, sub) end
                     end
                 end
             end
@@ -142,7 +143,7 @@ function Library:CreateWindow(name)
         local Frame = Instance.new("Frame")
         Frame.Size, Frame.BackgroundTransparency, Frame.BorderSizePixel, Frame.ClipsDescendants, Frame.Parent = UDim2.new(1, 0, 0, 25), 1, 0, true, Container
         local Label = Instance.new("TextLabel")
-        Label.Size, Label.Position, Label.BackgroundTransparency, Label.Text, Label.TextColor3, Label.TextSize, Label.Font, Label.TextXAlignment, Label.Parent = UDim2.new(1, -10, 0, 25), UDim2.new(0, 10, 0, 0), 1, "< + > " .. name, Color3.fromRGB(150, 150, 150), 13, Enum.Font.RobotoMono, Enum.TextXAlignment.Left, Frame
+        Label.Size, Label.Position, Label.BackgroundTransparency, Label.Text, Label.TextColor3, Label.TextSize, Label.Font, Label.TextXAlignment, Label.Active, Label.Parent = UDim2.new(1, -10, 0, 25), UDim2.new(0, 10, 0, 0), 1, "< + > " .. name, Color3.fromRGB(150, 150, 150), 13, Enum.Font.RobotoMono, Enum.TextXAlignment.Left, false, Frame
         local ChildContainer = Instance.new("Frame")
         ChildContainer.Size, ChildContainer.Position, ChildContainer.BackgroundTransparency, ChildContainer.Parent = UDim2.new(1, 0, 0, 0), UDim2.new(0, 0, 0, 25), 1, Frame
         local ChildLayout = Instance.new("UIListLayout")
@@ -151,9 +152,10 @@ function Library:CreateWindow(name)
         local function toggle()
             Tab.IsOpen = not Tab.IsOpen
             Label.Text = (Tab.IsOpen and "< - > " or "< + > ") .. name
-            local h = Tab.IsOpen and (ChildLayout.AbsoluteContentSize.Y + 25) or 25
-            Tween(Frame, TweenInfo.new(0.1), {Size = UDim2.new(1, 0, 0, h)})
-            Tween(ChildContainer, TweenInfo.new(0.1), {Size = UDim2.new(1, 0, 0, h - 25)})
+            local targetH = Tab.IsOpen and (ChildLayout.AbsoluteContentSize.Y + 25) or 25
+            if Tab.IsOpen and targetH <= 25 then targetH = (#Tab.Children * 25) + 25 end
+            Tween(Frame, TweenInfo.new(0.1), {Size = UDim2.new(1, 0, 0, targetH)})
+            Tween(ChildContainer, TweenInfo.new(0.1), {Size = UDim2.new(1, 0, 0, targetH - 25)})
         end
         Tab.Frame, Tab.Label, Tab.Callback = Frame, Label, toggle
         Frame.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then toggle() end end)
@@ -171,7 +173,7 @@ function Library:CreateWindow(name)
             local TFrame = Instance.new("Frame")
             TFrame.Size, TFrame.BackgroundTransparency, TFrame.BorderSizePixel, TFrame.Parent = UDim2.new(1, 0, 0, 25), 1, 0, ChildContainer
             local TLabel = Instance.new("TextLabel")
-            TLabel.Size, TLabel.Position, TLabel.BackgroundTransparency, TLabel.Text, TLabel.TextColor3, TLabel.TextSize, TLabel.Font, TLabel.TextXAlignment, TLabel.Parent = UDim2.new(0.5, -10, 1, 0), UDim2.new(0, 20, 0, 0), 1, name, Color3.fromRGB(150, 150, 150), 13, Enum.Font.RobotoMono, Enum.TextXAlignment.Left, TFrame
+            TLabel.Size, TLabel.Position, TLabel.BackgroundTransparency, TLabel.Text, TLabel.TextColor3, TLabel.TextSize, TLabel.Font, TLabel.TextXAlignment, TLabel.Active, TLabel.Parent = UDim2.new(0.5, -10, 1, 0), UDim2.new(0, 20, 0, 0), 1, name, Color3.fromRGB(150, 150, 150), 13, Enum.Font.RobotoMono, Enum.TextXAlignment.Left, false, TFrame
             local Status = Instance.new("TextLabel")
             Status.Size, Status.Position, Status.BackgroundTransparency, Status.TextSize, Status.Font, Status.TextXAlignment, Status.Parent = UDim2.new(0.5, -10, 1, 0), UDim2.new(0.5, 0, 0, 0), 1, 13, Enum.Font.RobotoMono, Enum.TextXAlignment.Right, TFrame
             local function update()
@@ -190,7 +192,7 @@ function Library:CreateWindow(name)
             local SFrame = Instance.new("Frame")
             SFrame.Size, SFrame.BackgroundTransparency, SFrame.BorderSizePixel, SFrame.Parent = UDim2.new(1, 0, 0, 25), 1, 0, ChildContainer
             local SLabel = Instance.new("TextLabel")
-            SLabel.Size, SLabel.Position, SLabel.BackgroundTransparency, SLabel.Text, SLabel.TextColor3, SLabel.TextSize, SLabel.Font, SLabel.TextXAlignment, SLabel.Parent = UDim2.new(0.5, -10, 1, 0), UDim2.new(0, 20, 0, 0), 1, name, Color3.fromRGB(150, 150, 150), 13, Enum.Font.RobotoMono, Enum.TextXAlignment.Left, SFrame
+            SLabel.Size, SLabel.Position, SLabel.BackgroundTransparency, SLabel.Text, SLabel.TextColor3, SLabel.TextSize, SLabel.Font, SLabel.TextXAlignment, SLabel.Active, SLabel.Parent = UDim2.new(0.5, -10, 1, 0), UDim2.new(0, 20, 0, 0), 1, name, Color3.fromRGB(150, 150, 150), 13, Enum.Font.RobotoMono, Enum.TextXAlignment.Left, false, SFrame
             local Box = Instance.new("TextBox")
             Box.Size, Box.Position, Box.BackgroundColor3, Box.BorderSizePixel, Box.Text, Box.TextColor3, Box.TextSize, Box.Font, Box.Parent = UDim2.new(0.4, 0, 0, 18), UDim2.new(0.6, -10, 0.5, -9), Color3.fromRGB(35, 35, 35), 0, tostring(Slider.Value), Color3.fromRGB(255, 255, 255), 12, Enum.Font.RobotoMono, SFrame
             Box.FocusLost:Connect(function() Slider.Value = Box.Text if callback then callback(Box.Text) end end)
@@ -199,19 +201,20 @@ function Library:CreateWindow(name)
             return Slider
         end
         function Tab:AddDropdown(name, options, callback)
-            local Dropdown = {Options = options or {}, Callback = callback, Open = false, Children = {}}
+            local Dropdown = {Options = options or {}, Callback = callback, IsOpen = false, Children = {}}
             local DFrame = Instance.new("Frame")
             DFrame.Size, DFrame.BackgroundTransparency, DFrame.BorderSizePixel, DFrame.ClipsDescendants, DFrame.Parent = UDim2.new(1, 0, 0, 25), 1, 0, true, ChildContainer
             local DLabel = Instance.new("TextLabel")
-            DLabel.Size, DLabel.Position, DLabel.BackgroundTransparency, DLabel.Text, DLabel.TextColor3, DLabel.TextSize, DLabel.Font, DLabel.TextXAlignment, DLabel.Parent = UDim2.new(1, -10, 0, 25), UDim2.new(0, 20, 0, 0), 1, "+ " .. name, Color3.fromRGB(150, 150, 150), 13, Enum.Font.RobotoMono, Enum.TextXAlignment.Left, DFrame
+            DLabel.Size, DLabel.Position, DLabel.BackgroundTransparency, DLabel.Text, DLabel.TextColor3, DLabel.TextSize, DLabel.Font, DLabel.TextXAlignment, DLabel.Active, DLabel.Parent = UDim2.new(1, -10, 0, 25), UDim2.new(0, 20, 0, 0), 1, "+ " .. name, Color3.fromRGB(150, 150, 150), 13, Enum.Font.RobotoMono, Enum.TextXAlignment.Left, false, DFrame
             local OptContainer = Instance.new("Frame")
             OptContainer.Size, OptContainer.Position, OptContainer.BackgroundTransparency, OptContainer.Parent = UDim2.new(1, 0, 0, 0), UDim2.new(0, 0, 0, 25), 1, DFrame
             local OptLayout = Instance.new("UIListLayout")
             OptLayout.Parent = OptContainer
             local function dToggle()
-                Dropdown.Open = not Dropdown.Open
-                DLabel.Text = (Dropdown.Open and "- " or "+ ") .. name
-                local h = Dropdown.Open and (OptLayout.AbsoluteContentSize.Y + 25) or 25
+                Dropdown.IsOpen = not Dropdown.IsOpen
+                DLabel.Text = (Dropdown.IsOpen and "- " or "+ ") .. name
+                local h = Dropdown.IsOpen and (OptLayout.AbsoluteContentSize.Y + 25) or 25
+                if Dropdown.IsOpen and h <= 25 then h = (#Dropdown.Options * 25) + 25 end
                 Tween(DFrame, TweenInfo.new(0.1), {Size = UDim2.new(1, 0, 0, h)})
                 Tween(OptContainer, TweenInfo.new(0.1), {Size = UDim2.new(1, 0, 0, h - 25)})
             end
