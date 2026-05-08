@@ -10,7 +10,7 @@ local function Tween(obj, info, props)
     return t
 end
 function Library:CreateWindow(name)
-    local Window = {Tabs = {}, Elements = {}, SelectedIdx = 1, Dragging = false, Active = true}
+    local Window = {Elements = {}, SelectedIdx = 1, Dragging = false, Active = true}
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "SkidNetUI"
     ScreenGui.ResetOnSpawn = false
@@ -20,7 +20,7 @@ function Library:CreateWindow(name)
     Main.Name = "Main"
     Main.Size = UDim2.new(0, 300, 0, 25)
     Main.Position = UDim2.new(0.5, -150, 0.5, -50)
-    Main.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    Main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
     Main.BorderSizePixel = 0
     Main.ClipsDescendants = true
     Main.Parent = ScreenGui
@@ -100,110 +100,132 @@ function Library:CreateWindow(name)
         end
     end
     Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(UpdateHeight)
+    local function getVisibleElements()
+        local visible = {}
+        for _, el in ipairs(Window.Elements) do
+            if el.Frame and el.Frame.Visible and el.Frame.Parent == Container then
+                table.insert(visible, el)
+                if el.IsOpen and el.Children then
+                    for _, child in ipairs(el.Children) do
+                        table.insert(visible, child)
+                    end
+                end
+            end
+        end
+        return visible
+    end
     UserInputService.InputBegan:Connect(function(input, gpe)
         if gpe or not Window.Active then return end
+        local visible = getVisibleElements()
         if input.KeyCode == Enum.KeyCode.Down then
-            Window.SelectedIdx = math.min(Window.SelectedIdx + 1, #Window.Elements)
-            Window:UpdateSelection()
+            Window.SelectedIdx = math.min(Window.SelectedIdx + 1, #visible)
+            Window:UpdateSelection(visible)
         elseif input.KeyCode == Enum.KeyCode.Up then
             Window.SelectedIdx = math.max(Window.SelectedIdx - 1, 1)
-            Window:UpdateSelection()
-        elseif input.KeyCode == Enum.KeyCode.Return then
-            local element = Window.Elements[Window.SelectedIdx]
+            Window:UpdateSelection(visible)
+        elseif input.KeyCode == Enum.KeyCode.Return or input.KeyCode == Enum.KeyCode.Space then
+            local element = visible[Window.SelectedIdx]
             if element and element.Callback then element.Callback() end
         end
     end)
-    function Window:UpdateSelection()
-        for i, element in ipairs(Window.Elements) do
+    function Window:UpdateSelection(visible)
+        visible = visible or getVisibleElements()
+        for i, element in ipairs(visible) do
             local isSelected = (i == Window.SelectedIdx)
             if element.Label then
                 Tween(element.Label, TweenInfo.new(0.1), {TextColor3 = isSelected and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(150, 150, 150)})
             end
         end
     end
-    function Window:AddSeparator()
-        local Sep = Instance.new("Frame")
-        Sep.Size, Sep.BackgroundColor3, Sep.BorderSizePixel, Sep.Parent = UDim2.new(1, 0, 0, 1), Color3.fromRGB(50, 50, 50), 0, Container
-    end
-    function Window:AddTab(name, callback)
-        local Tab = {Callback = callback}
-        local Frame = Instance.new("Frame")
-        Frame.Size, Frame.BackgroundTransparency, Frame.BorderSizePixel, Frame.Parent = UDim2.new(1, 0, 0, 25), 1, 0, Container
-        local Label = Instance.new("TextLabel")
-        Label.Size, Label.Position, Label.BackgroundTransparency, Label.Text, Label.TextColor3, Label.TextSize, Label.Font, Label.TextXAlignment, Label.Parent = UDim2.new(1, -10, 1, 0), UDim2.new(0, 10, 0, 0), 1, "< + > " .. name, Color3.fromRGB(150, 150, 150), 13, Enum.Font.RobotoMono, Enum.TextXAlignment.Left, Frame
-        Tab.Frame, Tab.Label = Frame, Label
-        Frame.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 and callback then callback() end
-        end)
-        table.insert(Window.Elements, Tab)
-        Window:UpdateSelection()
-        return Tab
-    end
-    function Window:AddToggle(name, default, callback)
-        local Toggle = {State = default or false, Callback = callback}
-        local Frame = Instance.new("Frame")
-        Frame.Size, Frame.BackgroundTransparency, Frame.BorderSizePixel, Frame.Parent = UDim2.new(1, 0, 0, 25), 1, 0, Container
-        local Label = Instance.new("TextLabel")
-        Label.Size, Label.Position, Label.BackgroundTransparency, Label.Text, Label.TextColor3, Label.TextSize, Label.Font, Label.TextXAlignment, Label.Parent = UDim2.new(0.5, -10, 1, 0), UDim2.new(0, 10, 0, 0), 1, name, Color3.fromRGB(150, 150, 150), 13, Enum.Font.RobotoMono, Enum.TextXAlignment.Left, Frame
-        local Status = Instance.new("TextLabel")
-        Status.Size, Status.Position, Status.BackgroundTransparency, Status.TextSize, Status.Font, Status.TextXAlignment, Status.Parent = UDim2.new(0.5, -10, 1, 0), UDim2.new(0.5, 0, 0, 0), 1, 13, Enum.Font.RobotoMono, Enum.TextXAlignment.Right, Frame
-        local function update()
-            Status.Text = Toggle.State and "<on>" or "<off>"
-            Status.TextColor3 = Toggle.State and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(100, 100, 100)
-            if callback then callback(Toggle.State) end
-        end
-        update()
-        Frame.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                Toggle.State = not Toggle.State
-                update()
-            end
-        end)
-        Toggle.Frame, Toggle.Label, Toggle.Callback = Frame, Label, function() Toggle.State = not Toggle.State update() end
-        table.insert(Window.Elements, Toggle)
-        Window:UpdateSelection()
-        return Toggle
-    end
-    function Window:AddSlider(name, default, callback)
-        local Slider = {Value = default or "", Callback = callback}
-        local Frame = Instance.new("Frame")
-        Frame.Size, Frame.BackgroundTransparency, Frame.BorderSizePixel, Frame.Parent = UDim2.new(1, 0, 0, 25), 1, 0, Container
-        local Label = Instance.new("TextLabel")
-        Label.Size, Label.Position, Label.BackgroundTransparency, Label.Text, Label.TextColor3, Label.TextSize, Label.Font, Label.TextXAlignment, Label.Parent = UDim2.new(0.5, -10, 1, 0), UDim2.new(0, 10, 0, 0), 1, name, Color3.fromRGB(150, 150, 150), 13, Enum.Font.RobotoMono, Enum.TextXAlignment.Left, Frame
-        local Box = Instance.new("TextBox")
-        Box.Size, Box.Position, Box.BackgroundColor3, Box.BorderSizePixel, Box.Text, Box.TextColor3, Box.TextSize, Box.Font, Box.Parent = UDim2.new(0.4, 0, 0, 18), UDim2.new(0.6, -10, 0.5, -9), Color3.fromRGB(35, 35, 35), 0, tostring(Slider.Value), Color3.fromRGB(255, 255, 255), 12, Enum.Font.RobotoMono, Frame
-        Box.FocusLost:Connect(function() Slider.Value = Box.Text if callback then callback(Box.Text) end end)
-        Slider.Frame, Slider.Label, Slider.Callback = Frame, Label, function() Box:CaptureFocus() end
-        table.insert(Window.Elements, Slider)
-        Window:UpdateSelection()
-        return Slider
-    end
-    function Window:AddDropdown(name, options, callback)
-        local Dropdown = {Options = options or {}, Callback = callback, Open = false}
+    function Window:AddTab(name)
+        local Tab = {IsOpen = false, Children = {}, Label = nil}
         local Frame = Instance.new("Frame")
         Frame.Size, Frame.BackgroundTransparency, Frame.BorderSizePixel, Frame.ClipsDescendants, Frame.Parent = UDim2.new(1, 0, 0, 25), 1, 0, true, Container
         local Label = Instance.new("TextLabel")
         Label.Size, Label.Position, Label.BackgroundTransparency, Label.Text, Label.TextColor3, Label.TextSize, Label.Font, Label.TextXAlignment, Label.Parent = UDim2.new(1, -10, 0, 25), UDim2.new(0, 10, 0, 0), 1, "< + > " .. name, Color3.fromRGB(150, 150, 150), 13, Enum.Font.RobotoMono, Enum.TextXAlignment.Left, Frame
-        local OptionContainer = Instance.new("Frame")
-        OptionContainer.Size, OptionContainer.Position, OptionContainer.BackgroundTransparency, OptionContainer.Parent = UDim2.new(1, 0, 0, 0), UDim2.new(0, 0, 0, 25), 1, Frame
-        Instance.new("UIListLayout").Parent = OptionContainer
+        local ChildContainer = Instance.new("Frame")
+        ChildContainer.Size, ChildContainer.Position, ChildContainer.BackgroundTransparency, ChildContainer.Parent = UDim2.new(1, 0, 0, 0), UDim2.new(0, 0, 0, 25), 1, Frame
+        local ChildLayout = Instance.new("UIListLayout")
+        ChildLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        ChildLayout.Parent = ChildContainer
         local function toggle()
-            Dropdown.Open = not Dropdown.Open
-            Label.Text = (Dropdown.Open and "< - > " or "< + > ") .. name
-            local h = Dropdown.Open and (#Dropdown.Options * 25 + 25) or 25
+            Tab.IsOpen = not Tab.IsOpen
+            Label.Text = (Tab.IsOpen and "< - > " or "< + > ") .. name
+            local h = Tab.IsOpen and (ChildLayout.AbsoluteContentSize.Y + 25) or 25
             Tween(Frame, TweenInfo.new(0.1), {Size = UDim2.new(1, 0, 0, h)})
-            Tween(OptionContainer, TweenInfo.new(0.1), {Size = UDim2.new(1, 0, 0, h - 25)})
+            Tween(ChildContainer, TweenInfo.new(0.1), {Size = UDim2.new(1, 0, 0, h - 25)})
         end
+        Tab.Frame, Tab.Label, Tab.Callback = Frame, Label, toggle
         Frame.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then toggle() end end)
-        for _, opt in ipairs(Dropdown.Options) do
-            local o = Instance.new("TextButton")
-            o.Size, o.BackgroundColor3, o.BorderSizePixel, o.Text, o.TextColor3, o.TextSize, o.Font, o.TextXAlignment, o.Parent = UDim2.new(1, 0, 0, 25), Color3.fromRGB(30, 30, 30), 0, "  " .. opt, Color3.fromRGB(200, 200, 200), 12, Enum.Font.RobotoMono, Enum.TextXAlignment.Left, OptionContainer
-            o.MouseButton1Click:Connect(function() if callback then callback(opt) end toggle() end)
-        end
-        Dropdown.Frame, Dropdown.Label, Dropdown.Callback = Frame, Label, toggle
-        table.insert(Window.Elements, Dropdown)
+        ChildLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            if Tab.IsOpen then
+                local h = ChildLayout.AbsoluteContentSize.Y + 25
+                Tween(Frame, TweenInfo.new(0.1), {Size = UDim2.new(1, 0, 0, h)})
+                Tween(ChildContainer, TweenInfo.new(0.1), {Size = UDim2.new(1, 0, 0, h - 25)})
+            end
+        end)
+        table.insert(Window.Elements, Tab)
         Window:UpdateSelection()
-        return Dropdown
+        function Tab:AddToggle(name, default, callback)
+            local Toggle = {State = default or false, Callback = callback}
+            local TFrame = Instance.new("Frame")
+            TFrame.Size, TFrame.BackgroundTransparency, TFrame.BorderSizePixel, TFrame.Parent = UDim2.new(1, 0, 0, 25), 1, 0, ChildContainer
+            local TLabel = Instance.new("TextLabel")
+            TLabel.Size, TLabel.Position, TLabel.BackgroundTransparency, TLabel.Text, TLabel.TextColor3, TLabel.TextSize, TLabel.Font, TLabel.TextXAlignment, TLabel.Parent = UDim2.new(0.5, -10, 1, 0), UDim2.new(0, 20, 0, 0), 1, name, Color3.fromRGB(150, 150, 150), 13, Enum.Font.RobotoMono, Enum.TextXAlignment.Left, TFrame
+            local Status = Instance.new("TextLabel")
+            Status.Size, Status.Position, Status.BackgroundTransparency, Status.TextSize, Status.Font, Status.TextXAlignment, Status.Parent = UDim2.new(0.5, -10, 1, 0), UDim2.new(0.5, 0, 0, 0), 1, 13, Enum.Font.RobotoMono, Enum.TextXAlignment.Right, TFrame
+            local function update()
+                Status.Text = Toggle.State and "<on>" or "<off>"
+                Status.TextColor3 = Toggle.State and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(100, 100, 100)
+                if callback then callback(Toggle.State) end
+            end
+            update()
+            TFrame.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then Toggle.State = not Toggle.State update() end end)
+            Toggle.Frame, Toggle.Label, Toggle.Callback = TFrame, TLabel, function() Toggle.State = not Toggle.State update() end
+            table.insert(Tab.Children, Toggle)
+            return Toggle
+        end
+        function Tab:AddSlider(name, default, callback)
+            local Slider = {Value = default or "", Callback = callback}
+            local SFrame = Instance.new("Frame")
+            SFrame.Size, SFrame.BackgroundTransparency, SFrame.BorderSizePixel, SFrame.Parent = UDim2.new(1, 0, 0, 25), 1, 0, ChildContainer
+            local SLabel = Instance.new("TextLabel")
+            SLabel.Size, SLabel.Position, SLabel.BackgroundTransparency, SLabel.Text, SLabel.TextColor3, SLabel.TextSize, SLabel.Font, SLabel.TextXAlignment, SLabel.Parent = UDim2.new(0.5, -10, 1, 0), UDim2.new(0, 20, 0, 0), 1, name, Color3.fromRGB(150, 150, 150), 13, Enum.Font.RobotoMono, Enum.TextXAlignment.Left, SFrame
+            local Box = Instance.new("TextBox")
+            Box.Size, Box.Position, Box.BackgroundColor3, Box.BorderSizePixel, Box.Text, Box.TextColor3, Box.TextSize, Box.Font, Box.Parent = UDim2.new(0.4, 0, 0, 18), UDim2.new(0.6, -10, 0.5, -9), Color3.fromRGB(35, 35, 35), 0, tostring(Slider.Value), Color3.fromRGB(255, 255, 255), 12, Enum.Font.RobotoMono, SFrame
+            Box.FocusLost:Connect(function() Slider.Value = Box.Text if callback then callback(Box.Text) end end)
+            Slider.Frame, Slider.Label, Slider.Callback = SFrame, SLabel, function() Box:CaptureFocus() end
+            table.insert(Tab.Children, Slider)
+            return Slider
+        end
+        function Tab:AddDropdown(name, options, callback)
+            local Dropdown = {Options = options or {}, Callback = callback, Open = false, Children = {}}
+            local DFrame = Instance.new("Frame")
+            DFrame.Size, DFrame.BackgroundTransparency, DFrame.BorderSizePixel, DFrame.ClipsDescendants, DFrame.Parent = UDim2.new(1, 0, 0, 25), 1, 0, true, ChildContainer
+            local DLabel = Instance.new("TextLabel")
+            DLabel.Size, DLabel.Position, DLabel.BackgroundTransparency, DLabel.Text, DLabel.TextColor3, DLabel.TextSize, DLabel.Font, DLabel.TextXAlignment, DLabel.Parent = UDim2.new(1, -10, 0, 25), UDim2.new(0, 20, 0, 0), 1, "+ " .. name, Color3.fromRGB(150, 150, 150), 13, Enum.Font.RobotoMono, Enum.TextXAlignment.Left, DFrame
+            local OptContainer = Instance.new("Frame")
+            OptContainer.Size, OptContainer.Position, OptContainer.BackgroundTransparency, OptContainer.Parent = UDim2.new(1, 0, 0, 0), UDim2.new(0, 0, 0, 25), 1, DFrame
+            local OptLayout = Instance.new("UIListLayout")
+            OptLayout.Parent = OptContainer
+            local function dToggle()
+                Dropdown.Open = not Dropdown.Open
+                DLabel.Text = (Dropdown.Open and "- " or "+ ") .. name
+                local h = Dropdown.Open and (OptLayout.AbsoluteContentSize.Y + 25) or 25
+                Tween(DFrame, TweenInfo.new(0.1), {Size = UDim2.new(1, 0, 0, h)})
+                Tween(OptContainer, TweenInfo.new(0.1), {Size = UDim2.new(1, 0, 0, h - 25)})
+            end
+            DFrame.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dToggle() end end)
+            for _, opt in ipairs(Dropdown.Options) do
+                local o = Instance.new("TextButton")
+                o.Size, o.BackgroundColor3, o.BorderSizePixel, o.Text, o.TextColor3, o.TextSize, o.Font, o.TextXAlignment, o.Parent = UDim2.new(1, 0, 0, 25), Color3.fromRGB(30, 30, 30), 0, "    " .. opt, Color3.fromRGB(200, 200, 200), 12, Enum.Font.RobotoMono, Enum.TextXAlignment.Left, OptContainer
+                o.MouseButton1Click:Connect(function() if callback then callback(opt) end dToggle() end)
+            end
+            Dropdown.Frame, Dropdown.Label, Dropdown.Callback = DFrame, DLabel, dToggle
+            table.insert(Tab.Children, Dropdown)
+            return Dropdown
+        end
+        return Tab
     end
     return Window
 end
