@@ -25,10 +25,17 @@ function Library:CreateWindow(name)
     Main.ClipsDescendants = true
     Main.Parent = ScreenGui
     local Stroke = Instance.new("UIStroke")
-    Stroke.Color = Color3.fromRGB(50, 50, 50)
+    Stroke.Color = Color3.fromRGB(35, 35, 35)
     Stroke.Thickness = 1
     Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     Stroke.Parent = Main
+    local TopLine = Instance.new("Frame")
+    TopLine.Name = "TopLine"
+    TopLine.Size = UDim2.new(1, 0, 0, 1)
+    TopLine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    TopLine.BorderSizePixel = 0
+    TopLine.ZIndex = 5
+    TopLine.Parent = Main
     local TopBar = Instance.new("Frame")
     TopBar.Name = "TopBar"
     TopBar.Size = UDim2.new(1, 0, 0, 25)
@@ -61,12 +68,13 @@ function Library:CreateWindow(name)
     local function setTransparency(offset)
         Tween(Main, TweenInfo.new(0.1), {BackgroundTransparency = math.clamp(Main.BackgroundTransparency + offset, 0, 1)})
         Tween(Stroke, TweenInfo.new(0.1), {Transparency = math.clamp(Stroke.Transparency + offset, 0, 1)})
+        Tween(TopLine, TweenInfo.new(0.1), {BackgroundTransparency = math.clamp(TopLine.BackgroundTransparency + offset, 0, 1)})
         for _, v in pairs(Main:GetDescendants()) do
-            if (v:IsA("Frame") or v:IsA("ScrollingFrame")) and v.Name ~= "TopBar" and v.BackgroundTransparency < 1 then
+            if (v:IsA("Frame") or v:IsA("ScrollingFrame")) and v.Name ~= "TopBar" and v.Name ~= "TopLine" and v.BackgroundTransparency < 1 then
                 Tween(v, TweenInfo.new(0.1), {BackgroundTransparency = math.clamp(v.BackgroundTransparency + offset, 0, 1)})
             elseif v:IsA("TextLabel") or v:IsA("TextBox") then
                 Tween(v, TweenInfo.new(0.1), {TextTransparency = math.clamp(v.TextTransparency + offset, 0, 1)})
-            elseif v:IsA("UIStroke") then
+            elseif v:IsA("UIStroke") and v ~= Stroke then
                 Tween(v, TweenInfo.new(0.1), {Transparency = math.clamp(v.Transparency + offset, 0, 1)})
             end
         end
@@ -130,6 +138,18 @@ function Library:CreateWindow(name)
             if element.Label then Tween(element.Label, TweenInfo.new(0.1), {TextColor3 = isSelected and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(150, 150, 150)}) end
         end
     end
+    local function setupHover(el, frame)
+        frame.MouseEnter:Connect(function()
+            local visible = getVisibleElements()
+            for i, v in ipairs(visible) do
+                if v == el then
+                    Window.SelectedIdx = i
+                    Window:UpdateSelection(visible)
+                    break
+                end
+            end
+        end)
+    end
     function Window:AddTab(name)
         local Tab = {IsOpen = false, Children = {}, Label = nil}
         local Frame = Instance.new("Frame")
@@ -154,6 +174,7 @@ function Library:CreateWindow(name)
             Tween(ChildContainer, TweenInfo.new(0.1), {Size = UDim2.new(1, 0, 0, targetH - 25)})
         end
         Tab.Frame, Tab.Label, Tab.Callback = Frame, Label, toggle
+        setupHover(Tab, Frame)
         Frame.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then toggle() end end)
         ChildLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
             if Tab.IsOpen then
@@ -180,6 +201,7 @@ function Library:CreateWindow(name)
             update()
             TFrame.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then Toggle.State = not Toggle.State update() end end)
             Toggle.Frame, Toggle.Label, Toggle.Callback = TFrame, TLabel, function() Toggle.State = not Toggle.State update() end
+            setupHover(Toggle, TFrame)
             table.insert(Tab.Children, Toggle)
             return Toggle
         end
@@ -193,6 +215,7 @@ function Library:CreateWindow(name)
             Box.Size, Box.Position, Box.BackgroundColor3, Box.BorderSizePixel, Box.Text, Box.TextColor3, Box.TextSize, Box.Font, Box.Parent = UDim2.new(0.4, 0, 0, 18), UDim2.new(0.6, -10, 0.5, -9), Color3.fromRGB(35, 35, 35), 0, tostring(Slider.Value), Color3.fromRGB(255, 255, 255), 12, Enum.Font.RobotoMono, SFrame
             Box.FocusLost:Connect(function() Slider.Value = Box.Text if callback then callback(Box.Text) end end)
             Slider.Frame, Slider.Label, Slider.Callback = SFrame, SLabel, function() Box:CaptureFocus() end
+            setupHover(Slider, SFrame)
             table.insert(Tab.Children, Slider)
             return Slider
         end
@@ -218,9 +241,10 @@ function Library:CreateWindow(name)
             for _, opt in ipairs(Dropdown.Options) do
                 local o = Instance.new("TextButton")
                 o.Size, o.BackgroundColor3, o.BorderSizePixel, o.Text, o.TextColor3, o.TextSize, o.Font, o.TextXAlignment, o.Parent = UDim2.new(1, 0, 0, 25), Color3.fromRGB(30, 30, 30), 0, "      " .. opt, Color3.fromRGB(200, 200, 200), 12, Enum.Font.RobotoMono, Enum.TextXAlignment.Left, OptContainer
-            o.MouseButton1Click:Connect(function() if callback then callback(opt) end dToggle() end)
+                o.MouseButton1Click:Connect(function() if callback then callback(opt) end dToggle() end)
             end
             Dropdown.Frame, Dropdown.Label, Dropdown.Callback = DFrame, DLabel, dToggle
+            setupHover(Dropdown, DFrame)
             table.insert(Tab.Children, Dropdown)
             return Dropdown
         end
